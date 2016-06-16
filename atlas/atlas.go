@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 
 	log "github.com/Sirupsen/logrus"
@@ -216,12 +217,47 @@ func toAtlasMetrics(metrics []plugin.MetricType) []Metric {
 	return atlasMetrics
 }
 
+// Get the exclude regex or return nil if it is not present or was an invalid
+// expression.
+func getExclude(logger *log.Logger, config map[string]ctypes.ConfigValue) *regexp.Regexp {
+	if cfgValue, ok := config["exclude"]; ok {
+		exclude := cfgValue.(ctypes.ConfigValueStr).Value
+		r, err := regexp.Compile(exclude)
+		if err != nil {
+			logger.Warn("failed to compile exclude pattern '%s': %v", exclude, err)
+			return nil
+		} else {
+			return r
+		}
+	} else {
+		return nil
+	}
+}
+
+// Filter out all metrics that match the regex.
+func filterNot(metrics []plugin.MetricType, re *regexp.Regexp) []plugin.MetricType {
+	if re == nil {
+		return metrics
+	} else {
+		filtered := []plugin.MetricType{}
+		for _, m := range metrics {
+			name := m.Namespace().String()
+			if !re.MatchString(name) {
+				filtered = append(filtered, m)
+			}
+		}
+		return filtered
+	}
+}
+
 func (f *atlasPublisher) Publish(contentType string, content []byte, config map[string]ctypes.ConfigValue) error {
 	logger := log.New()
 	logger.Println("Publishing started")
 	var metrics []plugin.MetricType
 
 	uri := config["uri"].(ctypes.ConfigValueStr).Value
+	exclude := getExclude(logger, config)
+
 	logger.Printf("URI %v", uri)
 
 	switch contentType {
@@ -236,9 +272,10 @@ func (f *atlasPublisher) Publish(contentType string, content []byte, config map[
 		return errors.New(fmt.Sprintf("Unknown content type '%s'", contentType))
 	}
 
-	// TODO: support for common tags
+	// Filter and convert to Atlas data model
+	atlasMetrics := toAtlasMetrics(filterNot(metrics, exclude))
 	client := NewAtlasClient(uri, map[string]string {})
-	client.Publish(toAtlasMetrics(metrics))
+	client.Publish(atlasMetrics)
 
 	return nil
 }
@@ -253,9 +290,13 @@ func (f *atlasPublisher) GetConfigPolicy() (*cpolicy.ConfigPolicy, error) {
 	handleErr(err)
 	r1.Description = "URI for Atlas server."
 
+	r2, err := cpolicy.NewStringRule("exclude", false)
+	handleErr(err)
+	r2.Description = "Regex on the namespace to exclude certain metrics."
+
 	cp := cpolicy.New()
 	config := cpolicy.NewPolicyNode()
-	config.Add(r1)
+	config.Add(r1, r2)
 	cp.Add([]string{""}, config)
 	return cp, nil
 }

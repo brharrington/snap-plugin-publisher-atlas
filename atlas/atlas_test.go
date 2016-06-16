@@ -17,6 +17,7 @@ package atlas
 
 import (
 	"math"
+	"regexp"
 	"testing"
 	"time"
 
@@ -141,6 +142,29 @@ func TestAtlasPublisher(t *testing.T) {
 		So(convertToBaseUnit("Ei", 1), ShouldResemble, math.Pow(1024.0, 6))
 		So(convertToBaseUnit("Zi", 1), ShouldResemble, math.Pow(1024.0, 7))
 		So(convertToBaseUnit("Yi", 1), ShouldResemble, math.Pow(1024.0, 8))
+	})
+
+	Convey("filterNot", t, func() {
+		timestamp := time.Now()
+		input := []plugin.MetricType{
+			*plugin.NewMetricType(core.NewNamespace("foo"), timestamp, nil, "", 99),
+			*plugin.NewMetricType(core.NewNamespace("foo", "bar"), timestamp, nil, "", 99),
+			*plugin.NewMetricType(core.NewNamespace("foo", "bar", "baz"), timestamp, nil, "", 99),
+		}
+
+		So(filterNot(input, nil), ShouldResemble, input)
+
+		exclude, _ := regexp.Compile("/foo/bar.*")
+		So(filterNot(input, exclude), ShouldResemble, input[:1])
+
+		exclude, _ = regexp.Compile("/foo/.*")
+		So(filterNot(input, exclude), ShouldResemble, input[:1])
+
+		exclude, _ = regexp.Compile("^(/foo|/foo/bar/baz)$")
+		So(filterNot(input, exclude), ShouldResemble, input[1:2])
+
+		exclude, _ = regexp.Compile("/foo.*")
+		So(filterNot(input, exclude), ShouldResemble, []plugin.MetricType{})
 	})
 
 	Convey("toAtlasMetric", t, func() {
