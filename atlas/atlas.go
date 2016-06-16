@@ -132,20 +132,51 @@ func convertToBaseUnit(unit string, value float64) float64 {
 	}
 }
 
+// Replaces variables in the pattern string with matching values from the
+// passed in map. Variables are indicated using braces, e.g.: {varname}.
+func substitute(pattern string, vars map[string]string) string {
+	tmp := pattern
+	for k, v := range vars {
+		vname := fmt.Sprintf("{%s}", k)
+		tmp = strings.Replace(tmp, vname, v, -1)
+	}
+	return tmp
+}
+
 // Create the Atlas tag map from the tags and namespace of the input
 // MetricType.
 func createAtlasTags(namespace core.Namespace, tags map[string]string) map[string]string {
+	// Convert namespace to variable map
+	vars := map[string]string{
+		"namespace": strings.Join(namespace.Strings(), "."),
+	}
+	staticNamespace := []string{}
+	n := len(namespace)
+	for i := 0; i < n; i++ {
+		// Add in positional variables
+		vars[fmt.Sprintf("%d", i)] = namespace[i].Value
+		vars[fmt.Sprintf("%d", i - n)] = namespace[i].Value
+
+		// For dynamic elements, add in variable with name. Otherwise append
+		// to static set.
+		if namespace[i].IsDynamic() {
+			vars[namespace[i].Name] = namespace[i].Value
+		} else {
+			staticNamespace = append(staticNamespace, namespace[i].Value)
+		}
+	}
+	vars["namespace_static"] = strings.Join(staticNamespace, ".")
+
 	// By default use the parts of the namespace to form the name. If an explicit
 	// 'name' key is used in the tags, then it will overwrite this value.
-	name := strings.Join(namespace.Strings(), ".")
 	atlasTags := map[string]string{
-		"name": name,
+		"name": vars["namespace"],
 	}
 
 	// Copy tags that are not explicitly ignored into the Atlas tag map.
 	for k, v := range tags {
 		if _, ignored := ignoredTags[k]; !ignored {
-			atlasTags[k] = v
+			atlasTags[k] = substitute(v, vars)
 		}
 	}
 
