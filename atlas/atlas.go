@@ -76,20 +76,30 @@ func toNumber(v interface{}) (float64, error) {
 }
 
 // Convert a snap MetricType value to an Atlas metric.
+func toAtlasMetric(metric plugin.MetricType) *Metric {
+	name := strings.Join(metric.Namespace().Strings(), ".")
+	v, err := toNumber(metric.Data())
+	if err == nil {
+		m := Metric{
+			map[string]string{
+				"name": name,
+			},
+			uint64(metric.Timestamp().Unix() * 1000),
+			v,
+		}
+		return &m
+	} else {
+		return nil
+	}
+}
+
+// Convert input metric array to Atlas metric type.
 func toAtlasMetrics(metrics []plugin.MetricType) []Metric {
 	var atlasMetrics []Metric
 	for i := range metrics {
-		m := metrics[i]
-		name := strings.Join(m.Namespace().Strings(), ".")
-		v, err := toNumber(m.Data())
-		if err == nil {
-			atlasMetrics = append(atlasMetrics, Metric{
-				map[string]string{
-					"name": name,
-				},
-				uint64(m.Timestamp().Unix() * 1000),
-				v,
-			})
+		m := toAtlasMetric(metrics[i])
+		if m != nil {
+			atlasMetrics = append(atlasMetrics, *m)
 		}
 	}
 	return atlasMetrics

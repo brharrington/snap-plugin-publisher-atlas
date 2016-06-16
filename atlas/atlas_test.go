@@ -26,6 +26,27 @@ import (
 )
 
 func TestAtlasPublisher(t *testing.T) {
+	Convey("toAtlasMetric", t, func() {
+		timestamp := time.Now()
+		input := *plugin.NewMetricType(core.NewNamespace("foo"), timestamp, nil, "", 99)
+
+		expected := Metric{
+			map[string]string{
+				"name": "foo",
+			},
+			uint64(timestamp.Unix() * 1000),
+			99.0,
+		}
+
+		So(*toAtlasMetric(input), ShouldResemble, expected)
+	})
+
+	Convey("toAtlasMetric non-numeric", t, func() {
+		timestamp := time.Now()
+		input := *plugin.NewMetricType(core.NewNamespace("foo"), timestamp, nil, "", "99")
+		So(toAtlasMetric(input), ShouldEqual, nil)
+	})
+
 	Convey("toAtlasMetrics", t, func() {
 
 		timestamp := time.Now()
