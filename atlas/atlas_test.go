@@ -16,6 +16,7 @@
 package atlas
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -69,6 +70,32 @@ func TestAtlasPublisher(t *testing.T) {
 		So(actual, ShouldResemble, expected)
 	})
 
+	Convey("convertToBaseUnit", t, func() {
+		So(convertToBaseUnit("none", 1e10), ShouldResemble, 1e10)
+
+		So(convertToBaseUnit("ns", 1e10), ShouldResemble, 10.0)
+		So(convertToBaseUnit("us", 1e10), ShouldResemble, 1e4)
+		So(convertToBaseUnit("ms", 1e10), ShouldResemble, 1e7)
+
+		So(convertToBaseUnit("k", 1e10), ShouldResemble, 1e13)
+		So(convertToBaseUnit("M", 1e10), ShouldResemble, 1e16)
+		So(convertToBaseUnit("G", 1e10), ShouldResemble, 1e19)
+		So(convertToBaseUnit("T", 1e10), ShouldResemble, 1e22)
+		So(convertToBaseUnit("P", 1e10), ShouldResemble, 1e25)
+		So(convertToBaseUnit("E", 1e10), ShouldResemble, 1e28)
+		So(convertToBaseUnit("Z", 1e10), ShouldResemble, 1e31)
+		So(convertToBaseUnit("Y", 1e10), ShouldResemble, 1e34)
+
+		So(convertToBaseUnit("Ki", 1), ShouldResemble, 1024.0)
+		So(convertToBaseUnit("Mi", 1), ShouldResemble, 1024.0 * 1024.0)
+		So(convertToBaseUnit("Gi", 1), ShouldResemble, 1024.0 * 1024.0 * 1024.0)
+		So(convertToBaseUnit("Ti", 1), ShouldResemble, math.Pow(1024.0, 4))
+		So(convertToBaseUnit("Pi", 1), ShouldResemble, math.Pow(1024.0, 5))
+		So(convertToBaseUnit("Ei", 1), ShouldResemble, math.Pow(1024.0, 6))
+		So(convertToBaseUnit("Zi", 1), ShouldResemble, math.Pow(1024.0, 7))
+		So(convertToBaseUnit("Yi", 1), ShouldResemble, math.Pow(1024.0, 8))
+	})
+
 	Convey("toAtlasMetric", t, func() {
 		timestamp := time.Now()
 		input := *plugin.NewMetricType(core.NewNamespace("foo"), timestamp, nil, "", 99)
@@ -79,6 +106,28 @@ func TestAtlasPublisher(t *testing.T) {
 			},
 			uint64(timestamp.Unix() * 1000),
 			99.0,
+		}
+
+		So(*toAtlasMetric(input), ShouldResemble, expected)
+	})
+
+	Convey("toAtlasMetric unit conversion", t, func() {
+		timestamp := time.Now()
+		input := *plugin.NewMetricType(
+			core.NewNamespace("foo"),
+			timestamp,
+			map[string]string{
+				"unit": "Ki",
+			},
+			"",
+			99)
+
+		expected := Metric{
+			map[string]string{
+				"name": "foo",
+			},
+			uint64(timestamp.Unix() * 1000),
+			99.0 * 1024.0,
 		}
 
 		So(*toAtlasMetric(input), ShouldResemble, expected)
