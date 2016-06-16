@@ -28,6 +28,7 @@ import (
 	"github.com/intelsdi-x/snap/control/plugin"
 	"github.com/intelsdi-x/snap/control/plugin/cpolicy"
 	"github.com/intelsdi-x/snap/core/ctypes"
+	"github.com/intelsdi-x/snap/core"
 )
 
 const (
@@ -35,6 +36,11 @@ const (
 	version    = 1
 	pluginType = plugin.PublisherPluginType
 )
+
+var ignoredTags = map[string]bool{
+	"unit": true,
+	"plugin_running_on": true,
+}
 
 type atlasPublisher struct {
 }
@@ -75,21 +81,105 @@ func toNumber(v interface{}) (float64, error) {
 	}
 }
 
+// Normalize to base unit.
+func convertToBaseUnit(unit string, value float64) float64 {
+	switch unit {
+	case "ns": // nanoseconds
+		return value / 1e9
+	case "us": // microseconds
+		return value / 1e6
+	case "ms": // milliseconds
+		return value / 1e3
+
+	// Metric prefixes
+	case "k":
+		return value * 1e3
+	case "M":
+		return value * 1e6
+	case "G":
+		return value * 1e9
+	case "T":
+		return value * 1e12
+	case "P":
+		return value * 1e15
+	case "E":
+		return value * 1e18
+	case "Z":
+		return value * 1e21
+	case "Y":
+		return value * 1e24
+
+	// Binary prefixes
+	case "Ki":
+		return value * math.Pow(1024.0, 1)
+	case "Mi":
+		return value * math.Pow(1024.0, 2)
+	case "Gi":
+		return value * math.Pow(1024.0, 3)
+	case "Ti":
+		return value * math.Pow(1024.0, 4)
+	case "Pi":
+		return value * math.Pow(1024.0, 5)
+	case "Ei":
+		return value * math.Pow(1024.0, 6)
+	case "Zi":
+		return value * math.Pow(1024.0, 7)
+	case "Yi":
+		return value * math.Pow(1024.0, 8)
+
+	default:
+		return value
+	}
+}
+
+// Create the Atlas tag map from the tags and namespace of the input
+// MetricType.
+func createAtlasTags(namespace core.Namespace, tags map[string]string) map[string]string {
+	// By default use the parts of the namespace to form the name. If an explicit
+	// 'name' key is used in the tags, then it will overwrite this value.
+	name := strings.Join(namespace.Strings(), ".")
+	atlasTags := map[string]string{
+		"name": name,
+	}
+
+	// Copy tags that are not explicitly ignored into the Atlas tag map.
+	for k, v := range tags {
+		if _, ignored := ignoredTags[k]; !ignored {
+			atlasTags[k] = v
+		}
+	}
+
+	return atlasTags
+}
+
 // Convert a snap MetricType value to an Atlas metric.
+func toAtlasMetric(metric plugin.MetricType) *Metric {
+	tags := createAtlasTags(metric.Namespace(), metric.Tags())
+	v, err := toNumber(metric.Data())
+	if err == nil {
+		unit, ok := metric.Tags()["unit"]
+		if ok {
+			v = convertToBaseUnit(unit, v)
+		}
+
+		m := Metric{
+			tags,
+			uint64(metric.Timestamp().Unix() * 1000),
+			v,
+		}
+		return &m
+	} else {
+		return nil
+	}
+}
+
+// Convert input metric array to Atlas metric type.
 func toAtlasMetrics(metrics []plugin.MetricType) []Metric {
 	var atlasMetrics []Metric
 	for i := range metrics {
-		m := metrics[i]
-		name := strings.Join(m.Namespace().Strings(), ".")
-		v, err := toNumber(m.Data())
-		if err == nil {
-			atlasMetrics = append(atlasMetrics, Metric{
-				map[string]string{
-					"name": name,
-				},
-				uint64(m.Timestamp().Unix() * 1000),
-				v,
-			})
+		m := toAtlasMetric(metrics[i])
+		if m != nil {
+			atlasMetrics = append(atlasMetrics, *m)
 		}
 	}
 	return atlasMetrics
