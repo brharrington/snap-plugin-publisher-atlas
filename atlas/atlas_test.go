@@ -28,6 +28,18 @@ import (
 
 func TestAtlasPublisher(t *testing.T) {
 
+	Convey("substitute", t, func() {
+		vars := map[string]string{}
+		So(substitute("no matches {foo}", vars), ShouldResemble, "no matches {foo}")
+
+		vars["foo"] = "bar"
+		So(substitute("single match {foo}", vars), ShouldResemble, "single match bar")
+		So(substitute("{foo} multi match {foo}", vars), ShouldResemble, "bar multi match bar")
+
+		vars["0"] = "positional"
+		So(substitute("multi var {foo}.{0}", vars), ShouldResemble, "multi var bar.positional")
+	})
+
 	Convey("createAtlasTags", t, func() {
 		actual := createAtlasTags(core.NewNamespace("test", "foo"), map[string]string{})
 		expected := map[string]string{
@@ -66,6 +78,41 @@ func TestAtlasPublisher(t *testing.T) {
 			"name": "custom.name",
 			"nf.region": "us-east-1",
 			"nf.app": "my_app",
+		}
+		So(actual, ShouldResemble, expected)
+
+		// positional vars
+		actual = createAtlasTags(core.NewNamespace("test", "foo"), map[string]string{
+			"name": "{1}.{0}",
+		})
+		expected = map[string]string{
+			"name": "foo.test",
+		}
+		So(actual, ShouldResemble, expected)
+
+		// positional vars, from end of namespace
+		actual = createAtlasTags(core.NewNamespace("test", "foo"), map[string]string{
+			"name": "{-1}.{-2}",
+		})
+		expected = map[string]string{
+			"name": "foo.test",
+		}
+		So(actual, ShouldResemble, expected)
+
+		// dynamic elements in namespace
+		dynNamespace := core.NewNamespace("test").
+			AddDynamicElement("host", "desc").
+			AddStaticElement("foo")
+		dynNamespace[1].Value = "i-12345"
+		actual = createAtlasTags(dynNamespace, map[string]string{
+		  "name": "{namespace_static}",
+		  "fqdn": "{namespace}",
+		  "node": "{host}",
+		})
+		expected = map[string]string{
+			"name": "test.foo",
+			"fqdn": "test.i-12345.foo",
+			"node": "i-12345",
 		}
 		So(actual, ShouldResemble, expected)
 	})
