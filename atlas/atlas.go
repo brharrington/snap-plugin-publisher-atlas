@@ -28,6 +28,7 @@ import (
 	"github.com/intelsdi-x/snap/control/plugin"
 	"github.com/intelsdi-x/snap/control/plugin/cpolicy"
 	"github.com/intelsdi-x/snap/core/ctypes"
+	"github.com/intelsdi-x/snap/core"
 )
 
 const (
@@ -35,6 +36,11 @@ const (
 	version    = 1
 	pluginType = plugin.PublisherPluginType
 )
+
+var ignoredTags = map[string]bool{
+	"unit": true,
+	"plugin_running_on": true,
+}
 
 type atlasPublisher struct {
 }
@@ -75,15 +81,33 @@ func toNumber(v interface{}) (float64, error) {
 	}
 }
 
+// Create the Atlas tag map from the tags and namespace of the input
+// MetricType.
+func createAtlasTags(namespace core.Namespace, tags map[string]string) map[string]string {
+	// By default use the parts of the namespace to form the name. If an explicit
+	// 'name' key is used in the tags, then it will overwrite this value.
+	name := strings.Join(namespace.Strings(), ".")
+	atlasTags := map[string]string{
+		"name": name,
+	}
+
+	// Copy tags that are not explicitly ignored into the Atlas tag map.
+	for k, v := range tags {
+		if _, ignored := ignoredTags[k]; !ignored {
+			atlasTags[k] = v
+		}
+	}
+
+	return atlasTags
+}
+
 // Convert a snap MetricType value to an Atlas metric.
 func toAtlasMetric(metric plugin.MetricType) *Metric {
-	name := strings.Join(metric.Namespace().Strings(), ".")
+	tags := createAtlasTags(metric.Namespace(), metric.Tags())
 	v, err := toNumber(metric.Data())
 	if err == nil {
 		m := Metric{
-			map[string]string{
-				"name": name,
-			},
+			tags,
 			uint64(metric.Timestamp().Unix() * 1000),
 			v,
 		}

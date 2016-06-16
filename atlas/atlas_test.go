@@ -26,6 +26,49 @@ import (
 )
 
 func TestAtlasPublisher(t *testing.T) {
+
+	Convey("createAtlasTags", t, func() {
+		actual := createAtlasTags(core.NewNamespace("test", "foo"), map[string]string{})
+		expected := map[string]string{
+			"name": "test.foo",
+		}
+		So(actual, ShouldResemble, expected)
+
+		// ignore plugin_running_on
+		actual = createAtlasTags(core.NewNamespace("test", "foo"), map[string]string{
+			"plugin_running_on": "foo",
+		})
+		So(actual, ShouldResemble, expected)
+
+		// ignore unit
+		actual = createAtlasTags(core.NewNamespace("test", "foo"), map[string]string{
+			"unit": "foo",
+		})
+		So(actual, ShouldResemble, expected)
+
+		// name override
+		actual = createAtlasTags(core.NewNamespace("test", "foo"), map[string]string{
+			"name": "custom.name",
+		})
+		expected = map[string]string{
+			"name": "custom.name",
+		}
+		So(actual, ShouldResemble, expected)
+
+		// other tags
+		actual = createAtlasTags(core.NewNamespace("test", "foo"), map[string]string{
+			"name": "custom.name",
+			"nf.region": "us-east-1",
+			"nf.app": "my_app",
+		})
+		expected = map[string]string{
+			"name": "custom.name",
+			"nf.region": "us-east-1",
+			"nf.app": "my_app",
+		}
+		So(actual, ShouldResemble, expected)
+	})
+
 	Convey("toAtlasMetric", t, func() {
 		timestamp := time.Now()
 		input := *plugin.NewMetricType(core.NewNamespace("foo"), timestamp, nil, "", 99)
