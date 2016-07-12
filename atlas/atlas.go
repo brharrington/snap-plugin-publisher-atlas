@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"regexp"
 	"strings"
 
@@ -250,12 +251,24 @@ func filterNot(metrics []plugin.MetricType, re *regexp.Regexp) []plugin.MetricTy
 	}
 }
 
+// Return environment variables as a map.
+func getenv() map[string]string {
+	envVars := map[string]string{}
+	for _, e := range os.Environ() {
+		pair := strings.Split(e, "=")
+		if len(pair) == 2 {
+			envVars[pair[0]] = pair[1]
+		}
+	}
+	return envVars
+}
+
 func (f *atlasPublisher) Publish(contentType string, content []byte, config map[string]ctypes.ConfigValue) error {
 	logger := log.New()
 	logger.Println("Publishing started")
 	var metrics []plugin.MetricType
 
-	uri := config["uri"].(ctypes.ConfigValueStr).Value
+	uri := substitute(config["uri"].(ctypes.ConfigValueStr).Value, getenv())
 	exclude := getExclude(logger, config)
 
 	logger.Printf("URI %v", uri)
