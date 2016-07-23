@@ -4,6 +4,8 @@ GLIDE = $(GOPATH)/bin/glide
 all: build
 
 $(GLIDE):
+	# On travis the bin directory is not present by default
+	mkdir -p $(GOPATH)/bin
 	curl https://glide.sh/get | sh
 
 install: $(GLIDE)
