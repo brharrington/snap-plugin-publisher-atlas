@@ -1,0 +1,11 @@
+package: github.com/brharrington/snap-plugin-publisher-atlas
+import:
+- package: github.com/Sirupsen/logrus
+  version: 0.10.0
+- package: github.com/intelsdi-x/snap
+  version: 0.15.0-beta
+  subpackages:
+  - control/plugin
+  - control/plugin/cpolicy
+  - core
+  - core/ctypes
