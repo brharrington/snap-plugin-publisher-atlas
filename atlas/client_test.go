@@ -17,6 +17,7 @@ package atlas
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
@@ -85,6 +86,45 @@ func TestClient(t *testing.T) {
 		}, f)
 		So(string(payload), ShouldResemble,
 			fmt.Sprintf(envelope, "[{\"tags\":{\"name\":\"bar\"},\"timestamp\":0,\"value\":42}]"))
+	})
+
+	Convey("sendToAtlas filter NaN values", t, func() {
+		client := NewAtlasClient("/api/v1/publish", map[string]string{
+			"nf.app": "foo",
+		}).(httpAtlasClient)
+
+		var payload []byte
+		f := func (data []byte) error {
+			payload = data
+			return nil
+		}
+
+		envelope := "{\"tags\":{\"nf.app\":\"foo\"},\"metrics\":%s}"
+
+		client.sendToAtlas([]Metric{
+			Metric{
+				map[string]string{
+					"name": "notANumber",
+				},
+				0,
+				math.NaN(),
+			},
+			Metric{
+				map[string]string{
+					"name": "positiveInfinity",
+				},
+				0,
+				math.Inf(1),
+			},
+			Metric{
+				map[string]string{
+					"name": "negativeInfinity",
+				},
+				0,
+				math.Inf(-1),
+			},
+		}, f)
+		So(string(payload), ShouldResemble, fmt.Sprintf(envelope, "[]"))
 	})
 
 }

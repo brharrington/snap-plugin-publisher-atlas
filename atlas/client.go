@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/http"
 
 	log "github.com/Sirupsen/logrus"
@@ -142,11 +143,23 @@ func (client httpAtlasClient) publish(metrics []Metric, doPost func([]byte) erro
 	}
 }
 
+// Filter out floating point values like that are not supported by standard json
+// like infinity and NaN.
+func (client httpAtlasClient) filterNumbers(metrics []Metric) []Metric {
+	buffer := make([]Metric, 0)
+	for _, m := range metrics {
+		if (!math.IsNaN(m.Value) && !math.IsInf(m.Value, 0)) {
+			buffer = append(buffer, m)
+		}
+	}
+	return buffer
+}
+
 // Encode the data as json and send to the backend.
 func (client httpAtlasClient) sendToAtlas(metrics []Metric, doPost func([]byte) error) {
 	logger := log.New()
 
-	batch := metricBatch{client.commonTags, metrics}
+	batch := metricBatch{client.commonTags, client.filterNumbers(metrics)}
 	json, err := json.Marshal(batch)
 	if err != nil {
 		logger.Errorf("failed to encode metrics as json: %v", err)
