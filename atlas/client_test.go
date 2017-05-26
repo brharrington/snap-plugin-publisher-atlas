@@ -38,11 +38,28 @@ func TestClient(t *testing.T) {
 		So(sanitizeString(".-_"), ShouldEqual, ".-_")
 		So(sanitizeString(" "), ShouldEqual, "_")
 		So(sanitizeString("/foo/${bar}/%*!@"), ShouldEqual, "_foo___bar______")
+		So(sanitizeString("abc-^1.0"), ShouldEqual, "abc-_1.0")
+		So(sanitizeString("abc-~1.0"), ShouldEqual, "abc-_1.0")
+	})
+
+	Convey("sanitizeStringRelaxed", t, func() {
+		So(sanitizeStringRelaxed(""), ShouldEqual, "")
+		So(sanitizeStringRelaxed("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), ShouldEqual, "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+		So(sanitizeStringRelaxed("abcdefghijklmnopqrstuvwxyz"), ShouldEqual, "abcdefghijklmnopqrstuvwxyz")
+		So(sanitizeStringRelaxed("0123456789"), ShouldEqual, "0123456789")
+		So(sanitizeStringRelaxed(".-_"), ShouldEqual, ".-_")
+		So(sanitizeStringRelaxed(" "), ShouldEqual, "_")
+		So(sanitizeStringRelaxed("/foo/${bar}/%*!@"), ShouldEqual, "_foo___bar______")
+		So(sanitizeStringRelaxed("abc-^1.0"), ShouldEqual, "abc-^1.0")
+		So(sanitizeStringRelaxed("abc-~1.0"), ShouldEqual, "abc-~1.0")
 	})
 
 	Convey("sanitizeMap", t, func() {
 		So(sanitizeMap(map[string]string{}), ShouldResemble, map[string]string{})
 		So(sanitizeMap(map[string]string{"a b":"/"}), ShouldResemble, map[string]string{"a_b":"_"})
+		So(sanitizeMap(map[string]string{"nf.cluster":"foo-~1.0"}), ShouldResemble, map[string]string{"nf.cluster":"foo-~1.0"})
+		So(sanitizeMap(map[string]string{"nf.asg":"foo-^1.0"}), ShouldResemble, map[string]string{"nf.asg":"foo-^1.0"})
+		So(sanitizeMap(map[string]string{"nf.app":"foo-^1.0"}), ShouldResemble, map[string]string{"nf.app":"foo-_1.0"})
 	})
 
 	Convey("NewAtlasClient", t, func() {
