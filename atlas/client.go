@@ -92,11 +92,37 @@ func sanitizeString(s string) string {
 	return string(copy)
 }
 
+// Cleanup the input string. The only allowed characters are
+// [A-Za-z0-9_.^~-]. Others will get converted to an '_'.
+func sanitizeStringRelaxed(s string) string {
+	copy := make([]uint8, len(s))
+	for i := range s {
+		c := s[i]
+		switch {
+		case c >= '0' && c <= '9':
+			copy[i] = c
+		case c >= 'A' && c <= 'Z':
+			copy[i] = c
+		case c >= 'a' && c <= 'z':
+			copy[i] = c
+		case c == '.' || c == '-' || c == '^' || c == '~':
+			copy[i] = c
+		default:
+			copy[i] = '_'
+		}
+	}
+	return string(copy)
+}
+
 // Returns a new map after sanitizing both the keys and the values.
 func sanitizeMap(tags map[string]string) map[string]string {
 	copy := make(map[string]string)
 	for k, v := range tags {
-		copy[sanitizeString(k)] = sanitizeString(v)
+		if k == "nf.cluster" || k == "nf.asg" {
+			copy[sanitizeString(k)] = sanitizeStringRelaxed(v)
+		} else {
+			copy[sanitizeString(k)] = sanitizeString(v)
+		}
 	}
 	return copy
 }
